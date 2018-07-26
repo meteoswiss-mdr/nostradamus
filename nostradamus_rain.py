@@ -28,7 +28,7 @@ from datetime import datetime
 import time
 
 # to create y, yhsaf & Xraw
-from pd_rr_create_y_yhsaf_Xraw_2017 import pd_rr_create_y_yhsaf_Xraw
+from pd_rr_create_y_yhsaf_Xraw import pd_rr_create_y_yhsaf_Xraw
 
 # to create all_data etc for a single time slot
 from pd_rr_preprocess_data import pd_rr_preprocess_data_single_scene
@@ -48,75 +48,7 @@ from datetime import datetime, timedelta
 
 from my_msg_module import get_last_SEVIRI_date
 
-#----------------------------------------------------------------------------------------------------------------
 
-def create_trollimage(prop, colormap, cw, filename, time_slot, fill_value=None, composite_file=None, background=None,
-                      add_borders=True, add_rivers=False, resolution='l', bits_per_pixel=8, mask=None):
-
-    fill_value=None
-    img = trollimage(prop, mode="L", fill_value=fill_value)
-    img.colorize(colormap)
-    PIL_image = img.pil_image()
-            
-    # define area
-    from mpop.projector import get_area_def
-    obj_area = get_area_def(area)
-    proj4_string = obj_area.proj4_string            
-    # e.g. proj4_string = '+proj=geos +lon_0=0.0 +a=6378169.00 +b=6356583.80 +h=35785831.0'
-    area_extent = obj_area.area_extent              
-    # e.g. area_extent = (-5570248.4773392612, -5567248.074173444, 5567248.074173444, 5570248.4773392612)
-    area_tuple = (proj4_string, area_extent)
-    
-    from plot_msg import add_borders_and_rivers
-    add_borders_and_rivers(PIL_image, cw, area_tuple,
-                           add_borders=add_borders, add_rivers=add_rivers,
-                           resolution=resolution, verbose=False)
-    
-    # indicate mask
-    if mask!=None:
-        print ("    indicate measurement mask")
-
-        #from skimage import feature
-        #mask = feature.canny(mask) - mask
-
-        # https://docs.scipy.org/doc/scipy-0.15.1/reference/generated/scipy.signal.convolve2d.html
-        from scipy import signal
-        scharr = np.array([[ -3-3j, 0-10j,  +3 -3j],
-                           [-10+0j, 0+ 0j, +10 +0j],
-                           [ -3+3j, 0+10j,  +3 +3j]]) # Gx + j*Gy
-        grad = signal.convolve2d(mask, scharr, boundary='symm', mode='same')
-        mask = np.absolute(grad)
-        mask /= mask.max()
-        mask = 1 - mask
-        print (mask.max(),mask.min()) 
-
-        img = trollimage(mask, mode="L", fill_value=None) #fill_value,[1,1,1], None
-        from trollimage.colormap import greys
-        img.colorize(greys)
-        
-        ##img.putalpha(mask*0 + 0.5)
-        img.putalpha((mask.max()-mask) * 0.5)
-        PIL_mask = img.pil_image()
-        from PIL import Image as PILimage 
-        PIL_image = PILimage.alpha_composite(PIL_mask, PIL_image)
-        #PIL_image = PIL_mask
-
-    # save image as file 
-    outfile = time_slot.strftime(filename)
-    PIL_image.save(outfile, optimize=True)
-    print ("... create figure: display "+outfile+" &")
-        
-    if composite_file != None:
-        bg_file = time_slot.strftime(background)
-        comp_file = time_slot.strftime(composite_file)
-        
-        command="/usr/bin/composite -depth "+str(bits_per_pixel)+" "+outfile+" "+bg_file+" "+comp_file
-        print ("    "+command)
-        print ("")
-        import subprocess
-        subprocess.call(command, shell=True) #+" 2>&1 &"
-    
-#----------------------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
 
@@ -524,8 +456,9 @@ if __name__ == '__main__':
         plot_trollimage=True
         if plot_trollimage:
             
+            from plotting_tools import create_trollimage
+            
             print ("*** create plot with trollimage")
-            from trollimage.image import Image as trollimage
             from copy import deepcopy
             from trollimage.colormap import RainRate
             colormap = deepcopy(RainRate)
@@ -552,20 +485,20 @@ if __name__ == '__main__':
             prop = np.ma.masked_equal(rr['ody'], 0)
             filename       = outdir+'ODY_rainrate-'+area+'_%Y%m%d%H%M.png'
             composite_file = outdir+'ODY_rainrate-IR-108-'+area+'_%Y%m%d%H%M.png'
-            create_trollimage(prop, colormap, cw, filename, time_slot, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
+            create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
 
             # rainrate as produced by model 
             prop = np.ma.masked_equal(rr[model], 0)
             filename       = outdir+'MSG_rainrate-'+model       +"-"+area+'_%Y%m%d%H%M.png'
             composite_file = outdir+'MSG_rainrate-'+model+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-            create_trollimage(prop, colormap, cw, filename, time_slot, composite_file=composite_file, background=IR_file, resolution=resolution)
+            create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution)
                 
             # rainrate with probability matching 
             if probab_match:
                 prop = np.ma.masked_equal(rr[model+'_pm'], 0)
                 filename       = outdir+'MSG_rainrate-'+model       +"-"+area+'_%Y%m%d%H%M.png'
                 composite_file = outdir+'MSG_rainrate-'+model+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                create_trollimage(prop, colormap, cw, filename, time_slot, composite_file=composite_file, background=IR_file, resolution=resolution)    
+                create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution)    
 
             # rainrate Odyssey radar composite with satellite rainrate beyond radar range
             combi_image=True
@@ -576,7 +509,7 @@ if __name__ == '__main__':
                 prop = np.ma.masked_equal(rr['combi'], 0)
                 filename       = outdir+'MSG_rainrate-ody-'+model       +"-"+area+'_%Y%m%d%H%M.png'
                 composite_file = outdir+'MSG_rainrate-ody-'+model+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                create_trollimage(prop, colormap, cw, filename, time_slot, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
+                create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
 
             print('=================================')
 

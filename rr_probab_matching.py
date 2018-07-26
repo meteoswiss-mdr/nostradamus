@@ -4,7 +4,7 @@
 import numpy as np
 
 # to create y, yhsaf & Xraw
-from pd_rr_create_y_yhsaf_Xraw_2017 import pd_rr_create_y_yhsaf_Xraw
+from pd_rr_create_y_yhsaf_Xraw import pd_rr_create_y_yhsaf_Xraw
 
 
 def probab_match_rr_refprovide(ody_rr_ref, pred_rr_ref, rr_tmp):
