@@ -2,6 +2,12 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.py~
+
+SEVIRI_data/
+__pycache__/
+save/
 
 # C extensions
 *.so
