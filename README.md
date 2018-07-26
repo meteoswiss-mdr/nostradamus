@@ -1,5 +1,12 @@
-## Welcome to GitHub Pages
+## Notradamus
 
+**NO**wcasting of **S**evere **T**hunderstorms by near-**R**eal-time **A**rtificial Intelligence **D**ata **A**nalysis of **MU**ltiple **S**ensors  
+
+
+
+
+
+### How to submit changes to the documentation
 You can use the [editor on GitHub](https://github.com/meteoswiss-mdr/nostradamus/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
 
 Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
