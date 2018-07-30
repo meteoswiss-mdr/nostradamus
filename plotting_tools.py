@@ -5,7 +5,7 @@
 from __future__ import division
 from __future__ import print_function
 
-
+import scp_settings
 
 #################
 ## Mapfigure from Nicolas Piaget iac ethz (adjusted)
@@ -134,8 +134,8 @@ def smart_colormap(clevs, name='jet', extend='both'):
 
 #----------------------------------------------------------------------------------------------------------------
 
-def create_trollimage(prop, colormap, cw, filename, time_slot, area, fill_value=None, composite_file=None, background=None,
-                      add_borders=True, add_rivers=False, resolution='l', bits_per_pixel=8, mask=None):
+def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_value=None, composite_file=None, background=None,
+                      add_borders=True, add_rivers=False, resolution='l', bits_per_pixel=8, mask=None, scpOutput=False):
 
     from trollimage.image import Image as trollimage
 
@@ -201,3 +201,11 @@ def create_trollimage(prop, colormap, cw, filename, time_slot, area, fill_value=
         print ("")
         import subprocess
         subprocess.call(command, shell=True) #+" 2>&1 &"
+
+        scpOutputDir = time_slot.strftime(scp_settings.scpOutputDir)
+        scpOutputDir = scpOutputDir.replace("%(rgb)s",rgb.replace("_","-"))
+        scpOutputDir = scpOutputDir.replace("%(area)s", area)
+        
+        if scpOutput:
+            print ("... secure copy: scp "+scp_settings.scpID+" "+comp_file+ " "+scpOutputDir)
+            subprocess.call("scp "+scp_settings.scpID+" "+comp_file+" "+scpOutputDir+" 2>&1 &", shell=True)

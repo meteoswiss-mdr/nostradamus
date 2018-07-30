@@ -157,6 +157,8 @@ if __name__ == '__main__':
     plots['euroHDready']=['rr-ody-mlp-pm']
 
     save_netCDF = ['euroHDready']
+
+    scpOutput = True
     
     ###############################################
     ## load the mlp for the precip detection (pd) #
@@ -511,49 +513,53 @@ if __name__ == '__main__':
                     IR_file=outdir+'MSG_IR-108-'+area+'_%s' % time_slot.strftime('%Y%m%d%H%M')+'.png'
                     img_IR_108.save(IR_file)
 
-
                 if 'odyssey' in plots[area]:
                     # reference Odyssey radar composite
+                    rgb='RATE'
                     prop = np.ma.masked_equal(rr['ody'], 0)
-                    filename       = outdir+'ODY_rainrate-'+area+'_%Y%m%d%H%M.png'
-                    composite_file = outdir+'ODY_rainrate-IR-108-'+area+'_%Y%m%d%H%M.png'
-                    create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
+                    filename       = outdir+'ODY_'+rgb+       '-'+area+'_%Y%m%d%H%M.png'
+                    composite_file = outdir+'ODY_'+rgb+'-IR-108-'+area+'_%Y%m%d%H%M.png'
+                    create_trollimage('RATE', prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution, scpOutput=scpOutput)
 
                 if 'rr-mlp' in plots[area]:
-                    # rainrate as produced by model 
+                    # rainrate as produced by model
+                    rgb='rr-mlp'
                     prop = np.ma.masked_equal(rr[model], 0)
-                    filename       = outdir+'MSG_rainrate-'+model       +"-"+area+'_%Y%m%d%H%M.png'
-                    composite_file = outdir+'MSG_rainrate-'+model+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                    create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution)
+                    filename       = outdir+'MSG_'+rgb       +"-"+area+'_%Y%m%d%H%M.png'
+                    composite_file = outdir+'MSG_'+rgb+"-IR-108-"+area+'_%Y%m%d%H%M.png'
+                    create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution, scpOutput=scpOutput)
 
                 # rainrate with probability matching 
                 if 'rr-mlp-pm' in plots[area]:
+                    rgb='rr-mlp-pm'
                     prop = np.ma.masked_equal(rr[model+'_pm'], 0)
-                    filename       = outdir+'MSG_rainrate-'+model+'-pm'       +"-"+area+'_%Y%m%d%H%M.png'
-                    composite_file = outdir+'MSG_rainrate-'+model+'-pm'+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                    create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution)    
+                    filename       = outdir+'MSG_'+rgb+       "-"+area+'_%Y%m%d%H%M.png'
+                    composite_file = outdir+'MSG_'+rgb+"-IR-108-"+area+'_%Y%m%d%H%M.png'
+                    create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, resolution=resolution, scpOutput=scpOutput)    
 
                 # rainrate Odyssey radar composite with satellite rainrate beyond radar range
                 combi_image=True
                 if 'rr-ody-mlp' in plots[area]:
+                    rgb='rr-'+model+'-ody'
                     # create the combi rr field
                     rr['combi']=copy.deepcopy(rr[model])
                     rr['combi'][mask_r]=rr['ody'][mask_r]
                     prop = np.ma.masked_equal(rr['combi'], 0)
-                    filename       = outdir+'MSG_rainrate-ody-'+model+'-pm'       +"-"+area+'_%Y%m%d%H%M.png'
-                    composite_file = outdir+'MSG_rainrate-ody-'+model+'-pm'+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                    create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
+                    filename       = outdir+'MSG_'+rgb       +"-"+area+'_%Y%m%d%H%M.png'
+                    composite_file = outdir+'MSG_'+rgb+"-IR-108-"+area+'_%Y%m%d%H%M.png'
+                    create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution, scpOutput=scpOutput)
 
                 # rainrate Odyssey radar composite with satellite rainrate beyond radar range
                 combi_image=True
                 if 'rr-ody-mlp-pm' in plots[area]:
+                    rgb='rr-'+model+'-pm'+'-ody'
                     # create the combi rr field
                     rr['combi']=copy.deepcopy(rr[model+'_pm'])
                     rr['combi'][mask_r]=rr['ody'][mask_r]
                     prop = np.ma.masked_equal(rr['combi'], 0)
-                    filename       = outdir+'MSG_rainrate-ody-'+model+'-pm'       +"-"+area+'_%Y%m%d%H%M.png'
-                    composite_file = outdir+'MSG_rainrate-ody-'+model+'-pm'+"-IR-108-"+area+'_%Y%m%d%H%M.png'
-                    create_trollimage(prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution)
+                    filename       = outdir+'MSG_'+rgb       +"-"+area+'_%Y%m%d%H%M.png'
+                    composite_file = outdir+'MSG_'+rgb+"-IR-108-"+area+'_%Y%m%d%H%M.png'
+                    create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution, scpOutput=scpOutput)
 
                 print('=================================')
 

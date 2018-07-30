@@ -37,6 +37,10 @@ MANIFEST
 *.manifest
 *.spec
 
+# scp keys
+id_dsa*
+id_rsa*
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
