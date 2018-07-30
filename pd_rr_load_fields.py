@@ -25,18 +25,10 @@ from mpop.channel import Channel
 
 from copy import deepcopy
 
-def load_constant_fields(sat_nr, area):
+def load_constant_fields(sat_nr):
     
     # radar threshold mask:
     radar_mask = GeostationaryFactory.create_scene("odyssey", "", "radar", datetime(1900,1,1,0))
-    
-    #if area == 'EuropeOdyssey00':
-    #    mask_rad_thres=np.load('./odyssey_mask/threshold_exceedance_mask_avg15cut2_cut04_cutmistral_201706_201707_201708.npy')
-    #elif area == 'EuropeOdyssey95':
-    #    mask_rad_thres=np.load('./odyssey_mask/threshold_exceedance_mask_avg15_cut2_cutmistral_201706_201707_201708.npy')
-    #else:
-    #    print('mask_rad_thres cannot be loaded as the areas do not correspond')
-    #    mask_rad_thres=[]
 
     # reproject this to the desired area:
     mask_rad_thres=np.load('./odyssey_mask/threshold_exceedance_mask_avg15cut2_cut04_cutmistral_201706_201707_201708.npy')        
@@ -45,8 +37,6 @@ def load_constant_fields(sat_nr, area):
     radar_mask.channels.append(Channel(name='mask_radar', wavelength_range=[0.,0.,0.], data=mask_rad_thres[:,:]))
     radar_mask['mask_radar'].area     = area_radar_mask
     radar_mask['mask_radar'].area_def = get_area_def(area_radar_mask)
-    radar_mask = radar_mask.project(area)
-    mask_rad_thres = radar_mask['mask_radar'].data
     
     # nominal viewing geometry
     print('*** read nominal viewing geometry', "meteosat", sat_nr, "seviri" )
@@ -56,7 +46,6 @@ def load_constant_fields(sat_nr, area):
     msg_area       = deepcopy(vg['vaa'].area)
     msg_area_def   = deepcopy(vg['vaa'].area_def)
     msg_resolution = deepcopy(vg['vaa'].resolution)
-    vg = vg.project(area)
     
     # read land sea mask (full SEVIRI Disk seen from 0 degree East)
     ls_file = './SEVIRI_data/LandSeaMask_SeviriDiskFull00.nc'
@@ -87,15 +76,11 @@ def load_constant_fields(sat_nr, area):
     ls_ele['ele'].area     = msg_area
     ls_ele['ele'].area_def = msg_area_def
 
-    # reproject to the desired area 
-    ls_ele = ls_ele.project(area)
-
-    return mask_rad_thres, vg, ls_ele
+    return radar_mask, vg, ls_ele
 
 
-def load_input(sat_nr, area, time_slot, par_fill, read_HSAF=True):
+def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     #########
-    # area: projection area
     # time_slot: time in UTC
     # par_fill: parallax corr gap filler: choose between 'False', 'nearest', and 'bilinear'
     #########
@@ -105,7 +90,6 @@ def load_input(sat_nr, area, time_slot, par_fill, read_HSAF=True):
 
     # SATELLITE
     channel_sat=['WV_062','WV_073','IR_087','IR_097','IR_108','IR_120','IR_134']
-
 
     # Cloud Mask
     prop_cma='CMa'
@@ -201,72 +185,5 @@ def load_input(sat_nr, area, time_slot, par_fill, read_HSAF=True):
         #sys.exit() # move on to the next iteration if the NWCSAF does not have a product at this time instance
         return date_missed,text
 
-        
-    print('=========================')
-    print ('start projection')
-    
-    data_radar   = global_radar.project(area,precompute=True)
-    global_radar = data_radar
-
-    data_sat   = global_sat.project(area,precompute=True)
-    global_sat = data_sat
-    
-    data_nwc   = global_nwc.project(area,precompute=True)
-    global_nwc = data_nwc
-    
-    if 1==0:
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        #fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(6,6))
-        
-        plt.imshow(global_nwc['CMa'].data)
-        plt.colorbar()
-        fig.savefig("CT_PHASE.png")
-        print("... display CT_PHASE.png &")
-        #plt.show()
-        quit()
-        
-    data_cth = global_cth.project(area,precompute=True)
-    global_cth = data_cth
-
-    if read_HSAF:
-        data_hsaf = global_hsaf.project(area,precompute=True)
-        global_hsaf = data_hsaf
-
-    print('ok')
-    print('=========================')
-
-    
-    # carry out appropriate parralax corr: 
-    print('start parrallax corr:',time_slot)
-
-    print('=========================')
-    print('start nwc')
-    global_nwc = global_nwc.parallax_corr(cth=global_cth[pge_cth].height, fill=par_fill)
-    print('done nwc')
-    print('=========================')
-
-
-    print('=========================')
-    print('start sat')
-    global_sat = global_sat.parallax_corr(cth=global_cth[pge_cth].height, fill=par_fill)
-    print('done sat')
-    print('=========================')
-
-    if read_HSAF:
-        print('=========================')    
-        print('start hsaf')
-        global_hsaf = global_hsaf.parallax_corr(cth=global_cth[pge_cth].height, fill=par_fill)
-        print('done hsaf')
-        print('=========================')
-
-
-    print('=========================')
-    print('start cth')
-    global_cth=global_cth.parallax_corr(cth=global_cth[pge_cth].height, fill=par_fill)
-    print('done cth')
-    print('=========================')
-
-    print('done parrallax corr:',time_slot)
 
     return global_radar,global_sat,global_nwc,global_cth,global_hsaf

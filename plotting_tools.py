@@ -196,9 +196,8 @@ def create_trollimage(prop, colormap, cw, filename, time_slot, area, fill_value=
         bg_file = time_slot.strftime(background)
         comp_file = time_slot.strftime(composite_file)
         
-        command="/usr/bin/composite -depth "+str(bits_per_pixel)+" "+outfile+" "+bg_file+" "+comp_file
+        command="/usr/bin/composite -depth "+str(bits_per_pixel)+" "+outfile+" "+bg_file+" "+comp_file+"; rm "+outfile
         print ("    "+command)
         print ("")
         import subprocess
         subprocess.call(command, shell=True) #+" 2>&1 &"
-    
