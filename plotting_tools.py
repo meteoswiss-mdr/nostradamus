@@ -18,6 +18,7 @@ from mpl_toolkits.basemap import Basemap
 from matplotlib.collections import LineCollection
 from matplotlib.colors import BoundaryNorm
 from matplotlib.pyplot import get_cmap, subplot
+from os.path import isfile
 
 class Mapfigure_Nicolas:
     """
@@ -159,7 +160,7 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
                            resolution=resolution, verbose=False)
     
     # indicate mask
-    if mask!=None:
+    if mask is not None:
         print ("    indicate measurement mask")
 
         #from skimage import feature
@@ -190,9 +191,13 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
     # save image as file 
     outfile = time_slot.strftime(filename)
     PIL_image.save(outfile, optimize=True)
-    print ("... create figure: display "+outfile+" &")
+    if isfile(outfile):
+        print ("... create figure: display "+outfile+" &")
+    else:
+        print ("*** Error: "+outfile+" could not be generated")
+        quit()
         
-    if composite_file != None:
+    if composite_file is not None:
         bg_file = time_slot.strftime(background)
         comp_file = time_slot.strftime(composite_file)
         

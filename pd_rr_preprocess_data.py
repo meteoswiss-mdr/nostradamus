@@ -216,7 +216,7 @@ def create_ANN_input(all_data_names, time_slot, vg, ls_ele, global_radar, global
 
 # -------------------------------------------------------------------------
 
-def create_masks(radar_mask, global_radar, global_sat, global_nwc, global_cth):
+def create_masks(radar_mask, data_radar, data_sat, data_nwc, data_cth):
 
     print('=================================')
     print('create masks of time slot:')
@@ -225,11 +225,11 @@ def create_masks(radar_mask, global_radar, global_sat, global_nwc, global_cth):
     ###########################
     
     # radar mask to see where odyssey ground truth exists
-    mask_r = global_radar['RATE-MASK'].data.data==False # True where rad product available
+    mask_r = data_radar['RATE-MASK'].data.data==False # True where rad product available
 
     # mask for rainrates > 0.3mm/h and below 130mm/h
-    mask_r_lt = np.logical_and(global_radar['RATE'].data.data>0.0,global_radar['RATE'].data.data<0.3) #low threshold mask: True where spurious RR values we cannot trust
-    mask_r_ht = global_radar['RATE'].data.data>=130.0 # high threshold mask: True where unphysically high RR
+    mask_r_lt = np.logical_and(data_radar['RATE'].data.data>0.0,data_radar['RATE'].data.data<0.3) #low threshold mask: True where spurious RR values we cannot trust
+    mask_r_ht = data_radar['RATE'].data.data>=130.0 # high threshold mask: True where unphysically high RR
 
     # Odyssey radar mask  # mask_rad_thres = True where ody not trustworthy
     mask_rad_thres = radar_mask['mask_radar'].data
@@ -241,19 +241,19 @@ def create_masks(radar_mask, global_radar, global_sat, global_nwc, global_cth):
     ############################
     
     # find cloud mask so that I know which pixels to not consider predictions at
-    mask_cth = global_cth['CTH_PC'].data.data.flatten()>0 # mask to show where all NWCSAF products available
+    mask_cth = data_cth['CTH_PC'].data.data.flatten()>0 # mask to show where all NWCSAF products available
 
-    CT = global_nwc['CT_PC'].data.data.flatten()
+    CT = data_nwc['CT_PC'].data.data.flatten()
     mask_CT = np.logical_and(CT>4, CT!=20) # -> - 6 cat -> left with 15 cat
     # exclude regions which are masked out
-    CT_mask = global_nwc['CT_PC'].data.mask.flatten()
+    CT_mask = data_nwc['CT_PC'].data.mask.flatten()
     mask_CT[CT_mask] = False
-    PHASE = global_nwc['CT_PHASE_PC'].data.data.flatten()
+    PHASE = data_nwc['CT_PHASE_PC'].data.data.flatten()
     mask_PHASE = PHASE!=0 # -> -1 cat -> left with 3 cat  
     mask_cat = np.logical_and(mask_CT, mask_PHASE)
     
     mask_h = np.logical_and(mask_cth,mask_cat) # True where NWCSAF products Cloud Top Height and Cloud Type and Cloud Phase available
-    mask_h = mask_h.reshape(global_sat['IR_108'].shape) # doesn't matter which field I take... just one with appropriate size
+    mask_h = mask_h.reshape(data_sat['IR_108'].shape) # doesn't matter which field I take... just one with appropriate size
     print('=================================')
         
     return mask_h, mask_r, mask_rnt

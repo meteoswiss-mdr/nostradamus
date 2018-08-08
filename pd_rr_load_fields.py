@@ -115,11 +115,9 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     prop_nwc = [prop_cma, prop_ct,prop_ctph,prop_ctt,prop_ctp] 
     pge_nwc = [pge_cma, pge_ct,pge_ctph,pge_ctt,pge_ctp]
 
-
     # Cloud height
     prop_cth='CTH'
     pge_cth = get_NWC_pge_name(prop_cth) # separate so can correct all others before also correcting it
-
 
     # hsaf
     prop_hsaf = 'h03' # <- what is this?! apparently estimated rain rate in mm/h
@@ -128,7 +126,7 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     print('=========================')
     print('start:',time_slot)
 
-    print('read radar data')
+    print('read Odyssey radar composite')
     global_radar = GeostationaryFactory.create_scene("odyssey", "", "radar", time_slot)
     global_radar.load([prop_rad])
     print(global_radar)
