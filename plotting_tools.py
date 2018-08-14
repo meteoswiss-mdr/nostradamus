@@ -166,56 +166,76 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
         #from skimage import feature
         #mask = feature.canny(mask) - mask
 
-        # https://docs.scipy.org/doc/scipy-0.15.1/reference/generated/scipy.signal.convolve2d.html
-        from scipy import signal
-        scharr = np.array([[ -3-3j, 0-10j,  +3 -3j],
-                           [-10+0j, 0+ 0j, +10 +0j],
-                           [ -3+3j, 0+10j,  +3 +3j]]) # Gx + j*Gy
-        grad = signal.convolve2d(mask, scharr, boundary='symm', mode='same')
-        mask = np.absolute(grad)
-        mask /= mask.max()
-        mask = 1 - mask
-        #print (mask.max(),mask.min()) 
+        if True:
+            # https://stackoverflow.com/questions/37365928/python-get-edges-from-multiple-400-binary-images-fast
+            if isinstance(mask, np.ma.MaskedArray):
+                image=mask.data
+            else:
+                image=mask
+            from scipy.ndimage import maximum_filter, minimum_filter
+            imax = (maximum_filter(image,size=3)!=image)
+            imin = (minimum_filter(image,size=3)!=image)
+            icomb = np.logical_or(imax,imin)
+            edge  = np.where(icomb,image,False)
+            #edge = np.where(icomb,mask,np.nan)
+            img = trollimage(~edge, mode="L", fill_value=None) #fill_value,[1,1,1], None
+            from trollimage.colormap import greys
+            img.colorize(greys)
+            img.putalpha(edge)  
+            PIL_mask = img.pil_image()
+            #PIL_mask.save("test_mask.png", optimize=True)
+        else:
+            # https://docs.scipy.org/doc/scipy-0.15.1/reference/generated/scipy.signal.convolve2d.html
+            from scipy import signal
+            scharr = np.array([[ -3-3j, 0-10j,  +3 -3j],
+                               [-10+0j, 0+ 0j, +10 +0j],
+                               [ -3+3j, 0+10j,  +3 +3j]]) # Gx + j*Gy
+            grad = signal.convolve2d(mask, scharr, boundary='symm', mode='same')
+            grad = np.absolute(grad)
+            grad /= grad.max()
+            edge = 1 - grad
+            #print (mask.max(),mask.min()) 
 
-        img = trollimage(mask, mode="L", fill_value=None) #fill_value,[1,1,1], None
-        from trollimage.colormap import greys
-        img.colorize(greys)
+            img = trollimage(edge, mode="L", fill_value=None) #fill_value,[1,1,1], None
+            from trollimage.colormap import greys
+            img.colorize(greys)
         
-        ##img.putalpha(mask*0 + 0.5)
-        img.putalpha((mask.max()-mask) * 0.5)
-        PIL_mask = img.pil_image()
+            ##img.putalpha(mask*0 + 0.5)
+            img.putalpha((edge.max()-edge) * 0.5)
+            PIL_mask = img.pil_image()
+            
         from PIL import Image as PILimage 
         PIL_image = PILimage.alpha_composite(PIL_mask, PIL_image)
         #PIL_image = PIL_mask
 
     return PIL_image
         
-    # save image as file 
-    outfile = time_slot.strftime(filename)
-    PIL_image.save(outfile, optimize=True)
-    if isfile(outfile):
-        print ("... create figure: display "+outfile+" &")
-    else:
-        print ("*** Error: "+outfile+" could not be generated")
-        quit()
-        
-    if composite_file is not None:
-        bg_file = time_slot.strftime(background)
-        comp_file = time_slot.strftime(composite_file)
-        
-        command="/usr/bin/composite -depth "+str(bits_per_pixel)+" "+outfile+" "+bg_file+" "+comp_file+"; rm "+outfile
-        print ("    "+command)
-        print ("")
-        import subprocess
-        subprocess.call(command, shell=True) #+" 2>&1 &"
-
-        scpOutputDir = time_slot.strftime(scp_settings.scpOutputDir)
-        scpOutputDir = scpOutputDir.replace("%(rgb)s",rgb.replace("_","-"))
-        scpOutputDir = scpOutputDir.replace("%(area)s", area)
-        
-        if scpOutput:
-            print ("... secure copy: scp "+scp_settings.scpID+" "+comp_file+ " "+scpOutputDir)
-            subprocess.call("scp "+scp_settings.scpID+" "+comp_file+" "+scpOutputDir+" 2>&1 &", shell=True)
+    ## save image as file 
+    #outfile = time_slot.strftime(filename)
+    #PIL_image.save(outfile, optimize=True)
+    #if isfile(outfile):
+    #    print ("... create figure: display "+outfile+" &")
+    #else:
+    #    print ("*** Error: "+outfile+" could not be generated")
+    #    quit()
+    #    
+    #if composite_file is not None:
+    #    bg_file = time_slot.strftime(background)
+    #    comp_file = time_slot.strftime(composite_file)
+    #    
+    #    command="/usr/bin/composite -depth "+str(bits_per_pixel)+" "+outfile+" "+bg_file+" "+comp_file+"; rm "+outfile
+    #    print ("    "+command)
+    #    print ("")
+    #    import subprocess
+    #    subprocess.call(command, shell=True) #+" 2>&1 &"
+    #
+    #    scpOutputDir = time_slot.strftime(scp_settings.scpOutputDir)
+    #    scpOutputDir = scpOutputDir.replace("%(rgb)s",rgb.replace("_","-"))
+    #    scpOutputDir = scpOutputDir.replace("%(area)s", area)
+    #    
+    #    if scpOutput:
+    #        print ("... secure copy: scp "+scp_settings.scpID+" "+comp_file+ " "+scpOutputDir)
+    #        subprocess.call("scp "+scp_settings.scpID+" "+comp_file+" "+scpOutputDir+" 2>&1 &", shell=True)
 
 
 #----------------------------------------------------------------------------------------------------------------
