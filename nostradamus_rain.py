@@ -33,174 +33,72 @@ from pd_rr_load_fields import load_input, load_constant_fields
 
 # for plotting
 import matplotlib.pyplot as plt
+
 from matplotlib.colors import from_levels_and_colors
+
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from plotting_tools import smart_colormap,map_plot
-from mpop.satellites import GeostationaryFactory
+from plotting_tools import smart_colormap, map_plot, save_RR_as_netCDF
 
 from my_msg_module import get_last_SEVIRI_date
 
-
-def save_RR_as_netCDF(outputDir, filename, rr, save_rr_pm=False, rr_pm=None, save_rr_ody=False, rr_ody=None, save_ody_mask=False, ody_mask=None, zlib=True):
-    
-    # save result as netCDF
-    from netCDF4 import Dataset
-    from os.path import exists
-    from os import makedirs
-    if not exists(outputDir):
-        makedirs(outputDir)
-        
-    outfile = outputDir+"/"+filename
-    print ("... save results in: ncview "+outfile+" &")
-    #ncfile  = Dataset(outfile,'w',format='NETCDF4_CLASSIC')
-    ncfile  = Dataset(outfile,'w',format='NETCDF4')
-    
-    nx=rr.shape[1]
-    ny=rr.shape[0]
-    
-    #create dimensions
-    ncfile.createDimension('x',nx)
-    ncfile.createDimension('y',ny)
-    
-    # define variables
-    # data types: 'f4' (32-bit floating point), 'f8' (64-bit floating point), 'i4' (32-bit signed integer), 'i2' (16-bit signed integer), 'i1' (8-bit signed integer),  
-    x = ncfile.createVariable('x','i4',('x',), zlib=zlib)
-    y = ncfile.createVariable('y','i4',('y',), zlib=zlib)
-    rr_nc  = ncfile.createVariable('rainfall_rate','f4',('y','x'), zlib=zlib)
-    if save_rr_pm:
-        rr_pm_nc = ncfile.createVariable('rainfall_rate (probability matched)','f4',('y','x'), zlib=zlib)
-    if save_rr_ody:
-        rr_ody_nc = ncfile.createVariable('rainfall_rate (odyssey)','f4',('y','x'), zlib=zlib)
-    if save_ody_mask:
-        rr_ody_mask = ncfile.createVariable('odyssey_mask','i1',('y','x'), zlib=zlib)
-        
-    # write data into index variables
-    x[:] = range(nx)
-    y[:] = [ny-1-i for i in range(ny)]
-    # write data into rainrate variables
-    rr_nc[:]    = rr
-    if save_rr_pm:
-        rr_pm_nc[:] = rr_pm
-    if save_rr_ody:
-        rr_ody_nc[:] = rr_ody
-    if save_ody_mask:
-        rr_ody_mask[:] = ody_mask
-
-    #close ncfile
-    ncfile.close()
-    print ("... saved results in: "+outfile)
-    print('=================================')
-
-
+from pydecorate import DecoratorAGG
+from os.path import isfile
+from os import chmod
+from postprocessing import postprocessing
 
 #########################################################################
 
-if __name__ == '__main__':
+def nostradamus_rain(in_msg):
+            
+    if in_msg.datetime is None:
+        in_msg.get_last_SEVIRI_date()
 
-    # Model
-    model = 'mlp'
-    
-    # remove viewing geometry
-    remove_vg = True
-        
-    # calculate Probability matching    
-    probab_match = True
-
-    # plot IR_108 channel below the sat derived rainfall
-    IR_108 = True
-    
-    # filling method for parallax correction 
-    par_fill='nearest'
-
-    read_HSAF=False
-
-    print ("")
-
-    if len(sys.argv) == 1:
-        RSS=False
-        time_slot = get_last_SEVIRI_date(RSS, delay=15)
-        end_date  = time_slot
-        print ('use near real time date', str(time_slot))
-    else:
-        if len(sys.argv) == 6:
-            year   = int(sys.argv[1])
-            month  = int(sys.argv[2])
-            day    = int(sys.argv[3])
-            hour   = int(sys.argv[4])
-            minute = int(sys.argv[5])
-            # update time slot in in_msg class
-            from datetime import datetime
-            time_slot = datetime(year, month, day, hour, minute)
-            end_date  = datetime(year, month, day, hour, minute)
-            print ('use date given by command line:', str(time_slot))
-        else:
-            time_slot = datetime(2018,7,13,15,45)
-            end_date  = datetime(2018,7,13,15,45)
-            print ('use default date:', str(timeslot))
-
+    if in_msg.end_date is None:
+        in_msg.end_date = in_msg.datetime
+        #in_msg.end_date = in_msg.datetime + timedelta(15)
+      
     delta     = timedelta(minutes=15) 
 
     # automatic choise of the FULL DISK SERVICE Meteosat satellite
-    if time_slot <  datetime(2008, 5, 13, 0, 0):   # before 13.05.2008 only nominal MSG1 (meteosat8), no Rapid Scan Service yet
+    if in_msg.datetime <  datetime(2008, 5, 13, 0, 0):   # before 13.05.2008 only nominal MSG1 (meteosat8), no Rapid Scan Service yet
         sat_nr = "08" 
-    elif time_slot <  datetime(2013, 2, 27, 9, 0): # 13.05.2008 ...  27.02.2013 
+    elif in_msg.datetime <  datetime(2013, 2, 27, 9, 0): # 13.05.2008 ...  27.02.2013 
         sat_nr = "09"                              # MSG-2  (meteosat9) became nominal satellite, MSG-1 (meteosat8) started RSS
-    elif time_slot <  datetime(2018, 3, 9, 0, 0):  # 27.02.2013 9:00UTC ... 09.03.2013                                   
+    elif in_msg.datetime <  datetime(2018, 3, 9, 0, 0):  # 27.02.2013 9:00UTC ... 09.03.2013                                   
         sat_nr = "10"                              # MSG-3 (meteosat10) became nominal satellite, MSG-2 started RSS (MSG1 is backup for MSG2)
     else:
         sat_nr = "11"
     print ("... work with Meteosat"+str(sat_nr))
     
+    print ("")
+    if in_msg.verbose:
+        print ('*** Create plots for ')
+        print ('    Satellite/Sensor: ' + in_msg.sat_str()) 
+        print ('    Satellite number: ' + in_msg.sat_nr_str() +' // ' +str(in_msg.sat_nr))
+        print ('    Satellite instrument: ' + in_msg.instrument)
+        print ('    Start Date/Time:      '+ str(in_msg.datetime))
+        print ('    End Date/Time:        '+ str(in_msg.datetime))
+        print ('    Areas:           ', in_msg.areas)
+        for area in in_msg.plots.keys():
+            print ('    plots['+area+']:            ', in_msg.plots[area])
+        #print ('    parallax_correction: ', in_msg.parallax_correction)
+        #print ('    reader level:    ', in_msg.reader_level)
+    
     ## read in all the constants files
     print('=================================')
     print('*** load the constant fields (radar mask, viewing geometry, and land/sea mask plus surface elevation)')
     global_radar_mask, global_vg, global_ls_ele = load_constant_fields(sat_nr) 
-
-    # Area
-    ##############
-    #areas=['EuropeOdyssey00'] # will need to be switched to EuropeOdyssey00 once I've done the new training
-    #areas=['EuropeCanaryS95'] ## does not work, as radar Odyssey masks saved on the 'EuropeOdyssey00' projection
-    #areas=['euroHDready']
-    #areas=['odysseyS25']
-    areas=['ccs4']
-    #areas=['EuropeCanary']
-    #areas=['SeviriDiskFull00'] # killed by memory error
-    #areas=['SeviriDiskFull00S2' # ANN not suited for tropical areas, too far away
-    #areas=['ccs4','odysseyS25','euroHDready']
-
-    save_netCDF = ['ccs4','euroHDready']
-    read_from_netCDF_file = False
-
-    # plots produces for different areas
-    plots={}
-    plots['ccs4']=['IR_108','rrMlp']
-    plots['odysseyS25']=['IR_108','rrMlp']
-    plots['euroHDready']=['rrOdyMlpPm']
-
-    postprocessing_composite={}
-    postprocessing_composite['ccs4']       = ["rrMlp-HRVir108"]
-    postprocessing_composite['odysseyS25'] = ["rrMlp-VIS006ir108"]
-    postprocessing_composite['euroHDready'] = ["rrOdyMlpPm-VIS006ir108"]
-
-    postprocessing_montage={}
-    postprocessing_montage['ccs4']=[["MSG_rr-mlp-ir108","MSG_h03-ir108"]]
-    
-
-    scpOutput = False
-
-    scpProducts = [['rr-ody-mlp-pm']]
-
     
     ###############################################
     ## load the mlp for the precip detection (pd) #
     ###############################################
 
-    if model == 'mlp':
+    if in_msg.model == 'mlp':
         dir_start_pd= './models/precipitation_detection/mlp/2hl_100100hu_10-7alpha_log/'
         dir_start_rr= './models/precipitation_rate/mlp/2hl_5050hu_10-2alpha_log/'
 
-    if not read_from_netCDF_file:
+    if not in_msg.read_from_netCDF:
 
         clf_pd = joblib.load(dir_start_pd+'clf.pkl') 
         scaler_pd = joblib.load(dir_start_pd+'scaler.pkl')
@@ -219,12 +117,16 @@ if __name__ == '__main__':
     ## load the reference sets for a climatological probab matching (pm) if requested
     ####################################
 
-    if probab_match:
+    if in_msg.probab_match:
         # load in the ref data sets created with the script: rr_probab_matching_create_refset.ipynb
         ody_rr_ref=np.load(dir_start_rr+'pm_valid_data_ody_rr_ref.npy')
         pred_rr_ref=np.load(dir_start_rr+'pm_valid_data_pred_rr_ref.npy')
-        
-    while time_slot <= end_date:
+
+    # initialize processed RGBs
+    plots_done={}
+    
+    time_slot = copy.deepcopy(in_msg.datetime)
+    while time_slot <= in_msg.end_date:
         print('... processing for time: ', time_slot)
 
         ################################################
@@ -235,18 +137,20 @@ if __name__ == '__main__':
         ## LOAD THE NEEDED INPUTS
         ##########################
 
-        if not read_from_netCDF_file:
+        if not in_msg.read_from_netCDF:
             ## read observations at the specific time
             print('=================================')
-            print('*** load the time slot specific fields with par_fill:', par_fill)
-            global_radar, global_sat, global_nwc, global_cth, global_hsaf = load_input(sat_nr, time_slot, par_fill, read_HSAF=read_HSAF)
-
-            #print ( global_radar['RATE'].data.shape )
-            #print ( global_sat['IR_108'].data.shape )
-            #print ( global_nwc['CT'].data.shape )
-            #print ( global_cth['CTH'].data.shape )
-
-        for area in areas:
+            print('*** load the time slot specific fields with in_msg.parallax_gapfilling:', in_msg.parallax_gapfilling)
+            global_radar, global_sat, global_nwc, global_cth, global_hsaf = load_input(sat_nr, time_slot, in_msg.parallax_gapfilling, read_HSAF=in_msg.read_HSAF)
+        else:
+            print('read Odyssey radar composite')
+            from mpop.satellites import GeostationaryFactory
+            global_radar = GeostationaryFactory.create_scene("odyssey", "", "radar", time_slot)
+            global_radar.load(['RATE'])
+            print(global_radar)
+            print('=========================')
+    
+        for area in in_msg.areas:
 
             print ("================================")
             print ("*** PROCESSING FOR AREA: "+area)
@@ -254,31 +158,66 @@ if __name__ == '__main__':
             # declare "precipitation detection" and "rainrate dictionary", the applied model (e.g. MLP) is used as key
             pd = {}
             rr = {}
+            plots_done[area]=[]
+            
+            if in_msg.read_from_netCDF:
 
-            if read_from_netCDF_file:
+                # reproject Odyssey radar mask to area of interest 
+                #radar_mask = global_radar_mask.project(area, precompute=True)
+                data_radar = global_radar.project(area, precompute=True)
+                # radar mask to see where odyssey ground truth exists
+                mask_r = data_radar['RATE-MASK'].data.data==False
+                rr['ody'] = copy.deepcopy(data_radar['RATE'].data.data)
+                # do not trust values below 0.3 & above 130 -> do not consider it as rain and set all values to 0 
+                rr['ody'][np.logical_or(rr['ody'] < 0.3,rr['ody'] >= 130.0)] = 0.0
+                print (rr['ody'].min(), rr['ody'].max(), rr['ody'].shape, type(rr['ody']))
+                
                 from netCDF4 import Dataset
                 # read from file
                 outdir_netCDF = time_slot.strftime('/data/COALITION2/database/meteosat/nostradamus_RR/%Y/%m/%d/')
-                file_netCDF = time_slot.strftime('MSG_rr-'+model+'-'+area+'_%Y%m%d%H%M.nc')
+                file_netCDF = time_slot.strftime('MSG_rr-'+in_msg.model+'-'+area+'_%Y%m%d%H%M.nc')
+                print ("*** read precip prediction from", outdir_netCDF+"/"+file_netCDF)
+
                 ncfile = Dataset(outdir_netCDF+"/"+file_netCDF,'r')
                 rr_tmp    = ncfile.variables['rainfall_rate'][:,:]
-                rr['ody'] = ncfile.variables['rainfall_rate (odyssey)'][:,:]
-                mask_r    = ncfile.variables['odyssey_mask'][:,:]
-                # mask for rainfall is where rainfall is larger than 0 mm/h
-                mask_h = rr_tmp.flatten()>0
-                pd[model] = rr_tmp>0
+
+                ### now, we read radar data directly from odyssey file 
+                #rr['ody'] = ncfile.variables['rainfall_rate (odyssey)'][:,:]
+                #print (rr['ody'].min(), rr['ody'].max(), rr['ody'].shape, type(rr['ody']))
+
+                ### now, we read radar mask directly from odyssey file 
+                #mask_r    = ncfile.variables['odyssey_mask'][:,:]
+                #print ("... convert mask_r (1, 0) from int to bolean (True, False)")
+                #mask_r = (mask_r == 1)
+                
+                # create fake mask_h (where rainfall is larger than 0 mm/h)
+                mask_h = rr_tmp>0
+                pd[in_msg.model] = rr_tmp>0
                 rr_tmp = rr_tmp.flatten()
                 # remove 0 entries 
                 rr_tmp = rr_tmp [ rr_tmp != 0 ]
-                print (rr_tmp.shape, rr_tmp.min(), rr_tmp.max())
-                print (mask_h.shape)
-                print (rr['ody'].shape)
+
+                if False:
+                    import matplotlib.pyplot as plt
+                    #fig = plt.figure()
+                    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(6,6))
+                    plt.subplot(2, 1, 1)
+                    plt.imshow(mask_h)
+                    #plt.colorbar()
+                    plt.subplot(2, 1, 2)
+                    plt.imshow(mask_r)
+                    #plt.colorbar()
+                    fig.savefig("mask_h_mask_r_netCDF.png")
+                    print("... display mask_h_mask_r_netCDF.png &")
+                    #plt.show()
+                    #quit()
+
                 
             else:
                 
                 ## project all data to the desired projection 
                 radar_mask, vg, ls_ele, data_radar, data_sat, data_nwc, data_cth, data_hsaf = \
-                    project_data(area, global_radar_mask, global_vg, global_ls_ele, global_radar, global_sat, global_nwc, global_cth, global_hsaf, read_HSAF=read_HSAF)
+                    project_data(area, global_radar_mask, global_vg, global_ls_ele, global_radar, global_sat, global_nwc, global_cth, global_hsaf, read_HSAF=in_msg.read_HSAF)
 
                 ###########################################################
                 ## SINGLE TIME SLOT TO CARRY OUT A FULL RAIN RATE RETRIEVAL 
@@ -292,23 +231,23 @@ if __name__ == '__main__':
                          pd_rr_preprocess_data_single_scene( area, time_slot,
                                                              radar_mask, vg, ls_ele,
                                                              data_radar, data_sat, data_nwc, data_cth, data_hsaf,
-                                                             par_fill, 'rr', read_HSAF=read_HSAF)
+                                                             in_msg.parallax_gapfilling, 'rr', read_HSAF=in_msg.read_HSAF)
                          #pd_rr_preprocess_data_single_scene( sat_nr, area, time_slot, 'nearest', 'rr', read_HSAF=False)
 
-                if 1==0:
+                if False:
                     import matplotlib.pyplot as plt
                     #fig = plt.figure()
                     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(6,6))
                     plt.subplot(2, 1, 1)
                     plt.imshow(mask_h)
-                    plt.colorbar()
+                    #plt.colorbar()
                     plt.subplot(2, 1, 2)
                     plt.imshow(mask_r)
-                    plt.colorbar()
+                    #plt.colorbar()
                     fig.savefig("mask_h_mask_r.png")
                     print("... display mask_h_mask_r.png &")
                     #plt.show()
-                    quit()
+                    #quit()
 
                 del rr['hsaf'] # since not actually needed in this script
 
@@ -326,7 +265,7 @@ if __name__ == '__main__':
 
                 del y_pd_vec, y_hsaf_pd_vec # (since not actually ever needed in this script)
 
-                if remove_vg==True:
+                if in_msg.remove_vg==True:
                     print('... remove viewing geometry from predictors')
                     feature_list = np.append(feature_list[:6],feature_list[8:])
                     X_raw = np.hstack([X_raw[:,:6],X_raw[:,8:]])
@@ -349,9 +288,9 @@ if __name__ == '__main__':
                 # make precip detection predictions
                 print ("***  make precip detection predictions")
                 pd_probab = clf_pd.predict_proba(X_pd)[:,1]   # probab precip balanced classes
-                pd_vec_h=pd_probab>=thres_pd  
-                pd[model] = np.zeros(lon.shape,dtype=bool)
-                pd[model][mask_h]=pd_vec_h
+                pd_vec_h = pd_probab>=thres_pd  
+                pd[in_msg.model] = np.zeros(lon.shape,dtype=bool)
+                pd[in_msg.model][mask_h] = pd_vec_h
 
                 ####################################
                 ## rain rate on above identified precipitating pixels
@@ -372,67 +311,50 @@ if __name__ == '__main__':
 
                 # rain rate prediction at places where precip detected by mlp
                 rr_tmp=reg_rr.predict(X_rr)  
-
-                print (rr_tmp.shape)
-                print (rr_tmp.max())
-                print (rr_tmp.min())
-                print (type(rr_tmp))
                 
             # carry out a probability machting if requested    
-            if probab_match:
-                print("... do probability matching for:", model)
-                print (ody_rr_ref.shape)
-                print (pred_rr_ref.shape)
-                print (rr_tmp.shape)
-                print (pd[model].shape)
-                print (pd[model].min())
-                print (pd[model].max())
-                pm_str = str(model)+'_pm'
+            if in_msg.probab_match:
+                print("... do probability matching for:", in_msg.model)
+                pm_str = str(in_msg.model)+'_pm'
                 rr_tmp_pm = probab_match_rr_refprovide(ody_rr_ref,pred_rr_ref,rr_tmp)  
                 #rr[pm_str] =  np.zeros_like(lon) 
                 rr[pm_str] =  np.zeros_like(rr['ody'])   # also casts the type float
-                rr[pm_str][pd[model]]=rr_tmp_pm
-                print("... probability matching done for:", model)
+                rr[pm_str][pd[in_msg.model]]=rr_tmp_pm
+                print("... probability matching done for:", in_msg.model)
 
-            # correct all too low predictions to the threhold rain rate        
+            # copy rainrate data to the final place
+            # replace all prediction lower than precipitation detection threshold with threhold rain rate        
             rr_tmp[rr_tmp<0.3]=0.3 # correct upward all too low predictions (i.e. the ones below the precip detection threshold)
-            rr[model] = np.zeros_like(rr['ody'])
-            rr[model][pd[model]]=rr_tmp    
-
-
+            rr[in_msg.model] = np.zeros_like(rr['ody'])
+            rr[in_msg.model][pd[in_msg.model]]=rr_tmp
+                
             #####################################
             ## SAVE RESULT AS NETCDF 
             #####################################
-
-            if area in save_netCDF and (not read_from_netCDF_file):
-                outdir_netCDF = time_slot.strftime('/data/COALITION2/database/meteosat/nostradamus_RR/%Y/%m/%d/')
-                #outdir_netCDF = "/data/COALITION2/PicturesSatellite/results_BEL/plots/precip_estimate/sat_live/"
-                file_netCDF = time_slot.strftime('MSG_rr-'+model+'-'+area+'_%Y%m%d%H%M.nc')
-                #save_RR_as_netCDF(outdir_netCDF, file_netCDF, rr[model], save_rr_pm=False, rr_pm=None, save_rr_ody=False, rr_ody=None, zlib=True)
-                print ("mask_r", type(mask_r), mask_r.shape)
-                print ("rr[model].min(), rr[model].max()", rr[model].min(), rr[model].max())
-                save_RR_as_netCDF(outdir_netCDF, file_netCDF, rr[model], save_rr_ody=True, rr_ody=rr['ody'], save_ody_mask=True, ody_mask=mask_r)
+            if area in in_msg.save_netCDF and (not in_msg.read_from_netCDF):
+                outdir_netCDF = time_slot.strftime(in_msg.outdir_netCDF)
+                file_netCDF   = time_slot.strftime(in_msg.file_netCDF)
+                file_netCDF   = file_netCDF.replace("%(area)s", area)
+                file_netCDF   = file_netCDF.replace("%(model)s", in_msg.model)
+                #save_RR_as_netCDF(outdir_netCDF, file_netCDF, rr[in_msg.model], save_rr_ody=True, rr_ody=rr['ody'], save_ody_mask=True, ody_mask=mask_r, zlib=True)
+                save_RR_as_netCDF(outdir_netCDF, file_netCDF, rr[in_msg.model])
+                
                 
             #####################################
             ## SINGLE TIME SLOT TO DRAW THE MAPS 
             #####################################
 
-            print ("start ploting results")
+            print ("*** start to create plots")
             
             ####################################
             ## plot precip detection
             ####################################
-
-            #outdir = '/data/cinesat/out/'
-            #outdir = '/data/COALITION2/PicturesSatellite/%Y-%m-%d/%Y-%m-%d_%(rgb)s_%(area)s/'
-            outdir = '/data/COALITION2/database/meteosat/nostradamus_RR/%Y/%m/%d/'
             
-            plot_precipitation_detection=False
-            if plot_precipitation_detection:
+            if 'pdMlp' in in_msg.plots[area]:
                 
                 mask_rt = np.logical_and(mask_r, mask_rnt==False) # trusted radar i.e. True where I have a trustworthy radar product available
 
-                mod_ss = [model] + ['ody']
+                mod_ss = [in_msg.model] + ['ody']
 
                 # ver for verification;
                 ver={}    
@@ -448,7 +370,9 @@ if __name__ == '__main__':
 
                 # define colorkey 
                 v_pd=np.array([-0.5,0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5])
-                cmap_pd, norm_pd = from_levels_and_colors(v_pd, colors=['darkgrey', '#984ea3','lightgrey','plum', '#377eb8', '#e41a1c','ivory','#ff7f00'], extend='neither')
+                cmap_pd, norm_pd = from_levels_and_colors(v_pd,
+                                    colors =['darkgrey', '#984ea3','lightgrey','plum', '#377eb8', '#e41a1c','ivory','#ff7f00'],
+                                    extend='neither')
 
                 plot_precipitation_detection=False
                 if plot_precipitation_detection:    
@@ -459,7 +383,6 @@ if __name__ == '__main__':
                     fig,ax= plt.subplots(figsize=(10, 5))
                     plt.rcParams.update({'font.size': 8})
                     plt.rcParams.update({'mathtext.default':'regular'}) 
-
 
                     m = map_plot(axis=ax,area=area)
                     m.ax.set_title('precip detection based on sat vs opera')
@@ -474,21 +397,20 @@ if __name__ == '__main__':
                     cax = divider.append_axes("right", size="4%", pad=0.05)
                     cbar = fig.colorbar(im, cax=cax, ticks=tick_label_pd_nr, spacing='uniform')
                     a=cbar.ax.set_yticklabels(tick_label_pd)
-                    outfile= 'precip_detection_sat'+model+'_vs_opera_%s'
-                    fig.savefig((outdir+outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
-                    print('... create figure: display ' + outdir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
+                    outfile= 'precip_detection_sat'+in_msg.model+'_vs_opera_%s'
+                    fig.savefig((in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
+                    print('... create figure: display ' + in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
 
-
+                plots_done[area].append('pdMlp')
+                    
             ####################################
-            ## plot rain rate
+            ## plot rain rate with matplotlib
             ####################################
 
-            # with matplotlib
-            plot_precipitation_rate=False
-            if plot_precipitation_rate:    
+            if 'rrMatplotlib' in in_msg.plots[area]:  
 
                 # create the combi rr field
-                rr['combi']=copy.deepcopy(rr[model+'_pm'])
+                rr['combi']=copy.deepcopy(rr[in_msg.model+'_pm'])
                 rr['combi'][mask_r]=rr['ody'][mask_r]
 
                 # determine where I have >0.3 mm/h precip on the permanent mask -> overlay end picture with a pink(?) color there
@@ -532,11 +454,10 @@ if __name__ == '__main__':
                 m =  map_plot(axis=axes[1],area=area)
                 m.ax.set_title('Rain Rate (MSG ANN), '+str(time_slot))
 
-                if IR_108:
+                if in_msg.IR_108 and not in_msg.read_from_netCDF:
                     # plot the IR_108 channel
                     clevs = np.arange(225,316,10)
                     cmap_sat,norm_sat=smart_colormap(clevs,name='Greys',extend='both')
-
                     im4 = m.pcolormesh(lon,lat,data_sat['IR_108_PC'].data,cmap=cmap_sat,norm=norm_sat,latlon=True)
                 else:
                     # plot a white surface to distinguish between the regions where the produ
@@ -544,19 +465,19 @@ if __name__ == '__main__':
                     cmap_pd_nt, norm_pd_nt = from_levels_and_colors(v_pd_nt, colors=['white'], extend='neither')
                     im4=m.pcolormesh(lon,lat,np.ones(lon.shape),cmap=cmap_pd_nt,norm=norm_pd_nt,latlon=True)
 
-                if probab_match:
-                    im=m.pcolormesh(lon, lat,rr[model+'_pm'], cmap=cmap_rr, norm=norm_rr, latlon=True)
+                if in_msg.probab_match:
+                    im=m.pcolormesh(lon, lat,rr[in_msg.model+'_pm'], cmap=cmap_rr, norm=norm_rr, latlon=True)
                 else:
-                    im=m.pcolormesh(lon, lat,rr[model],       cmap=cmap_rr, norm=norm_rr, latlon=True)
+                    im=m.pcolormesh(lon, lat,rr[in_msg.model],       cmap=cmap_rr, norm=norm_rr, latlon=True)
 
-                if IR_108 and probab_match:
-                    outfile= 'rr_combioperasat'+model+'pm_satIR108'+model+'pm_%s'    
-                elif IR_108 and (probab_match==False):
-                    outfile= 'rr_combioperasat'+model+'_satIR108'+model+'_%s'
-                elif (IR_108==False) and probab_match:
-                    outfile= 'rr_combioperasat'+model+'pm_sat'+model+'pm_%s'
-                elif (IR_108==False) and (probab_match==False):
-                    outfile= 'rr_combioperasat'+model+'_sat'+model+'_%s'    
+                if in_msg.IR_108 and in_msg.probab_match:
+                    outfile= 'rr_combioperasat'+in_msg.model+'pm_satIR108'+in_msg.model+'pm_%s'    
+                elif in_msg.IR_108 and (in_msg.probab_match==False):
+                    outfile= 'rr_combioperasat'+in_msg.model+'_satIR108'+in_msg.model+'_%s'
+                elif (in_msg.IR_108==False) and in_msg.probab_match:
+                    outfile= 'rr_combioperasat'+in_msg.model+'pm_sat'+in_msg.model+'pm_%s'
+                elif (in_msg.IR_108==False) and (in_msg.probab_match==False):
+                    outfile= 'rr_combioperasat'+in_msg.model+'_sat'+in_msg.model+'_%s'    
 
                 fig.subplots_adjust(bottom=0.15)
                 cbar_ax = fig.add_axes([0.25, 0.05, 0.5, 0.05])
@@ -564,18 +485,23 @@ if __name__ == '__main__':
                 cbar.set_label('$mm\,h^{-1}$')
 
 
-                fig.savefig((outdir+outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
-                print('... create figure: display ' + outdir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
+                fig.savefig((in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
+                print('... create figure: display ' + in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
 
                 elapsed = time.time() - t
                 print("... elapsed time for creating the rainrate image in seconds: "+str(elapsed))
 
-
+                plots_done[area].append('rrMatplotlib')
+                
+            ####################################
+            ## plot rain rate with trollimage
+            ####################################
             plot_trollimage=True
             if plot_trollimage:
 
                 from plotting_tools import create_trollimage
-
+                from plot_msg import add_title
+                
                 print ("*** create plot with trollimage")
                 from copy import deepcopy
                 from trollimage.colormap import RainRate
@@ -583,42 +509,76 @@ if __name__ == '__main__':
 
                 # define contour write for coasts, borders, rivers
                 from pycoast import ContourWriterAGG
-                mapDir='/opt/users/common/shapes/'
-                cw = ContourWriterAGG(mapDir)
+                cw = ContourWriterAGG(in_msg.mapDir)
 
                 from plot_msg import choose_map_resolution
                 resolution = choose_map_resolution(area, None) 
                 #resolution='l' # odyssey, europe
                 #resolution='i' # ccs4
-                print ("resolution=", resolution)
+                print ("    resolution=", resolution)
 
-                IR_file=time_slot.strftime(outdir+'MSG_IR-108-'+area+'_%Y%m%d%H%M.png')
+                IR_file=time_slot.strftime(in_msg.outputDir+'MSG_IR-108-'+area+'_%Y%m%d%H%M.png')
                 
-                if 'IR_108' in plots[area]:
+                if 'IR_108' in in_msg.plots[area] and not in_msg.read_from_netCDF:
                     # create black white background
                     #img_IR_108 = data_sat.image.channel_image('IR_108_PC')
                     img_IR_108 = data_sat.image.ir108()
                     img_IR_108.save(IR_file)
                                     
-                for rgb in plots[area]:
+                for rgb in in_msg.plots[area]:
                         if rgb == 'RATE':
                             prop = np.ma.masked_equal(rr['ody'], 0)
+                            mask2plot=deepcopy(mask_r)
                         elif rgb =='rrMlp':
-                            prop = np.ma.masked_equal(rr[model], 0)
+                            prop = np.ma.masked_equal(rr[in_msg.model], 0)
+                            mask2plot=None
                         elif rgb == 'rrMlpPm':
-                            prop = np.ma.masked_equal(rr[model+'_pm'], 0)
-                        elif rgb == 'rrOdyMlpPm':
-                            rr['combi']=copy.deepcopy(rr[model])
+                            prop = np.ma.masked_equal(rr[in_msg.model+'_pm'], 0)
+                            mask2plot=None
+                        elif rgb == 'rrOdyMlp':
+                            rr['combi']=copy.deepcopy(rr[in_msg.model])
                             rr['combi'][mask_r]=rr['ody'][mask_r]
                             prop = np.ma.masked_equal(rr['combi'], 0)
+                            mask2plot=deepcopy(mask_r)
+                        elif rgb == 'rrOdyMlpPm':
+                            rr['combi']=copy.deepcopy(rr[in_msg.model+'_pm'])
+                            rr['combi'][mask_r] = rr['ody'][mask_r]
+                            prop = np.ma.masked_equal(rr['combi'], 0)
+                            mask2plot=deepcopy(mask_r)
                         elif rgb == 'IR_108':
                             continue
                         else:
                             "*** Error, unknown product requested"
                             quit()
-                        filename = outdir+'MSG_'+rgb+       "-"+area+'_%Y%m%d%H%M.png'
-                        composite_file = outdir+"/"+'MSG_'+postprocessing_composite[area][0]+"-"+area+'_%Y%m%d%H%M.png'
-                        create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file, background=IR_file, mask=mask_r, resolution=resolution, scpOutput=scpOutput)
+                        filename = None
+                        if area in in_msg.postprocessing_composite:
+                            composite_file = in_msg.outputDir+"/"+'MSG_'+in_msg.postprocessing_composite[area][0]+"-"+area+'_%Y%m%d%H%M.png'
+                            composite_file = composite_file.replace("%(rgb)s", rgb)
+                        else:
+                            composite_file = None
+                            
+                        PIL_image = create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, composite_file=composite_file,
+                                          background=IR_file, mask=mask2plot, resolution=resolution, scpOutput=in_msg.scpOutput)
+
+                        # add title to image
+                        dc = DecoratorAGG(PIL_image)
+                        if in_msg.add_title:
+                            add_title(PIL_image, in_msg.title, rgb, 'MSG', sat_nr, in_msg.datetime, area, dc, True,
+                                      title_color=in_msg.title_color, title_y_line_nr=in_msg.title_y_line_nr ) # !!! needs change
+                            
+                        # save image as file
+                        outfile = time_slot.strftime(in_msg.outputDir+"/"+in_msg.outputFile).replace("%(rgb)s", rgb).replace("%(area)s", area).replace("%(model)s", in_msg.model)
+
+                        PIL_image.save(outfile, optimize=True)
+                        if isfile(outfile):
+                            print ("... create figure: display "+outfile+" &")
+                            chmod(outfile, 0777)
+                            plots_done[area].append(rgb)
+                        else:
+                            print ("*** Error: "+outfile+" could not be generated")
+                            quit()
+                            
+                            
 
                 print('=================================')
 
@@ -631,8 +591,7 @@ if __name__ == '__main__':
             ## opera composite vs the prediction... but I think it'd be less confusing to only show the prediction
             ##############################################
 
-            plot_opera_vs_prediction=False
-            if plot_opera_vs_prediction:
+            if 'OdyVsRr' in in_msg.plots[area]:
 
                 fig, axes = plt.subplots(1, 2,figsize=(23.5, 5))
                     # will be switched to basemap once have new training set together
@@ -668,15 +627,16 @@ if __name__ == '__main__':
                 a=cbar.ax.set_yticklabels(tick_label_pd,fontsize=14)
 
                 outfile= 'test_%s'
-                fig.savefig((outdir+ outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
-                print('... create figure: display ' + outdir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
+                fig.savefig((in_msg.outputDir+ outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
+                print('... create figure: display ' + in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
 
+                plots_done[area].append('OdyVsRr')
+                
             ##############################################
             ## cth visualisation without parallax corr for a test
             ##############################################
 
-            plot_cth=False
-            if plot_cth:
+            if 'CTH' in in_msg.plots[area]:
                 fig, axes = plt.subplots(1, 1,figsize=(5, 3))
                 plt.rcParams.update({'font.size': 16})
                 plt.rcParams.update({'mathtext.default':'regular'}) 
@@ -694,11 +654,43 @@ if __name__ == '__main__':
                 data_cth['CTTH'].height
 
                 outfile= 'CTH_without_parallax_%s'
-                fig.savefig((outdir+ outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
-                print('... create figure: display ' + outdir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
+                fig.savefig((in_msg.outputDir+ outfile %time_slot.strftime('%Y%m%d%H%M')), dpi=300, bbox_inches='tight')
+                print('... create figure: display ' + in_msg.outputDir+outfile %time_slot.strftime('%Y%m%d%H%M') + '.png')
 
-            # end of area loop
+                plots_done[area].append('CTH')
                 
+        # end of area loop
+        ## start postprocessing
+        for area in in_msg.postprocessing_areas:
+            postprocessing(in_msg, time_slot, int(sat_nr), area)
+            
         # increase the time by a time delta
         time_slot += delta
-        # end of time loop 
+        # end of time loop
+
+    return plots_done
+
+#----------------------------------------------------------------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------
+def print_usage():
+   
+   print ("***           ")
+   print ("*** Error, not enough command line arguments")
+   print ("***        please specify at least an input file")
+   print ("***        possible calls are:")
+   print ("*** python "+inspect.getfile(inspect.currentframe())+" input_rr ")
+   print ("*** python "+inspect.getfile(inspect.currentframe())+" -d 2014 07 23 16 10 input_rr  ")
+   print ("                                 date and time must be completely given")
+   print ("***           ")
+   quit() # quit at this point
+#----------------------------------------------------------------------------------------------------------------
+
+if __name__ == '__main__':
+
+   import sys
+   from get_input_msg import get_date_and_inputfile_from_commandline
+   in_msg = get_date_and_inputfile_from_commandline(print_usage=print_usage)
+   
+   plots_done = nostradamus_rain(in_msg)
+   print ("*** Satellite pictures produced for ", plots_done)
+   print (" ")

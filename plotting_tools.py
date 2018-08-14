@@ -175,7 +175,7 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
         mask = np.absolute(grad)
         mask /= mask.max()
         mask = 1 - mask
-        print (mask.max(),mask.min()) 
+        #print (mask.max(),mask.min()) 
 
         img = trollimage(mask, mode="L", fill_value=None) #fill_value,[1,1,1], None
         from trollimage.colormap import greys
@@ -188,6 +188,8 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
         PIL_image = PILimage.alpha_composite(PIL_mask, PIL_image)
         #PIL_image = PIL_mask
 
+    return PIL_image
+        
     # save image as file 
     outfile = time_slot.strftime(filename)
     PIL_image.save(outfile, optimize=True)
@@ -214,3 +216,60 @@ def create_trollimage(rgb, prop, colormap, cw, filename, time_slot, area, fill_v
         if scpOutput:
             print ("... secure copy: scp "+scp_settings.scpID+" "+comp_file+ " "+scpOutputDir)
             subprocess.call("scp "+scp_settings.scpID+" "+comp_file+" "+scpOutputDir+" 2>&1 &", shell=True)
+
+
+#----------------------------------------------------------------------------------------------------------------
+
+def save_RR_as_netCDF(outputDir, filename, rr, save_rr_pm=False, rr_pm=None, save_rr_ody=False, rr_ody=None, save_ody_mask=False, ody_mask=None, zlib=True):
+    
+    # save result as netCDF
+    from netCDF4 import Dataset
+    from os.path import exists
+    from os import makedirs
+    if not exists(outputDir):
+        makedirs(outputDir)
+        
+    outfile = outputDir+"/"+filename
+    print ("... save results in: ncview "+outfile+" &")
+    #ncfile  = Dataset(outfile,'w',format='NETCDF4_CLASSIC')
+    ncfile  = Dataset(outfile,'w',format='NETCDF4')
+    
+    nx=rr.shape[1]
+    ny=rr.shape[0]
+    
+    #create dimensions
+    ncfile.createDimension('x',nx)
+    ncfile.createDimension('y',ny)
+    
+    # define variables
+    # https://docs.scipy.org/doc/numpy-1.12.0/reference/arrays.dtypes.html
+    # 'b' boolean; 'i' (signed) integer; 'u' unsigned integer; 'f' floating-point; 'c' complex-floating point; 'm' timedelta; 'M' datetime; 'O' (Python) objects 
+    # data types: 'f4' (32-bit floating point), 'f8' (64-bit floating point), 'i4' (32-bit signed integer), 'i2' (16-bit signed integer), 'i1' (8-bit signed integer),
+
+    x = ncfile.createVariable('x','i4',('x',), zlib=zlib)
+    y = ncfile.createVariable('y','i4',('y',), zlib=zlib)
+    rr_nc  = ncfile.createVariable('rainfall_rate','f4',('y','x'), zlib=zlib)
+    if save_rr_pm:
+        rr_pm_nc = ncfile.createVariable('rainfall_rate (probability matched)','f4',('y','x'), zlib=zlib)
+    if save_rr_ody:
+        rr_ody_nc = ncfile.createVariable('rainfall_rate (odyssey)','f4',('y','x'), zlib=zlib)
+    if save_ody_mask:
+        #rr_ody_mask = ncfile.createVariable('odyssey_mask','i1',('y','x'), zlib=zlib)
+        rr_ody_mask = ncfile.createVariable('odyssey_mask','b',('y','x'), zlib=zlib)
+        
+    # write data into index variables
+    x[:] = range(nx)
+    y[:] = [ny-1-i for i in range(ny)]
+    # write data into rainrate variables
+    rr_nc[:]    = rr
+    if save_rr_pm:
+        rr_pm_nc[:] = rr_pm
+    if save_rr_ody:
+        rr_ody_nc[:] = rr_ody
+    if save_ody_mask:
+        rr_ody_mask[:] = ody_mask
+
+    #close ncfile
+    ncfile.close()
+    print ("... saved results in: "+outfile)
+    print('=================================')
