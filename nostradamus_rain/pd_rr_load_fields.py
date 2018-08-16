@@ -31,7 +31,7 @@ def load_constant_fields(sat_nr):
     radar_mask = GeostationaryFactory.create_scene("odyssey", "", "radar", datetime(1900,1,1,0))
 
     # reproject this to the desired area:
-    mask_rad_thres=np.load('./odyssey_mask/threshold_exceedance_mask_avg15cut2_cut04_cutmistral_201706_201707_201708.npy')        
+    mask_rad_thres=np.load('../data/odyssey_mask/threshold_exceedance_mask_avg15cut2_cut04_cutmistral_201706_201707_201708.npy')        
     from mpop.projector import get_area_def
     area_radar_mask = 'EuropeOdyssey00'
     radar_mask.channels.append(Channel(name='mask_radar', wavelength_range=[0.,0.,0.], data=mask_rad_thres[:,:]))
@@ -48,12 +48,12 @@ def load_constant_fields(sat_nr):
     msg_resolution = deepcopy(vg['vaa'].resolution)
     
     # read land sea mask (full SEVIRI Disk seen from 0 degree East)
-    ls_file = './SEVIRI_data/LandSeaMask_SeviriDiskFull00.nc'
+    ls_file = '../data/SEVIRI_data/LandSeaMask_SeviriDiskFull00.nc'
     fh = Dataset(ls_file, mode='r')
     lsmask = fh.variables['lsmask'][:]
 
     # read topography (full SEVIRI Disk seen from 0 degree East)
-    ls_file = './SEVIRI_data/SRTM_15sec_elevation_SeviriDiskFull00.nc'
+    ls_file = '../data/SEVIRI_data/SRTM_15sec_elevation_SeviriDiskFull00.nc'
     fh = Dataset(ls_file, mode='r')
     ele = fh.variables['elevation'][:]
 
