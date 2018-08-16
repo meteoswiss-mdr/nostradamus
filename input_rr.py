@@ -131,9 +131,9 @@ def input(in_msg):
     #default: in_msg.scpOutputDir="las@lomux240:/www/proj/OTL/WOL/cll/satimages"
     #default: in_msg.scpID="-i /home/cinesat/.ssh/id_dsa_las"
     in_msg.scpProducts = [["MSG_rrMlp-HRVir108",   "MSG_radar-HRVir108", "MSG_CRR-HRVir108", \
-                           "MSG_rrMlpPm-HRVir108", "MSG_h03-HRV"    , "MSG_CRPh-HRVir108"],\
-                          ["MSG_rrMlp-VIS006ir108","MSG_RATE-VIS006ir108","MSG_h03-VIS006ir108"],\
-                          "rrOdyMlpPm-VIS006ir108"]
+                           "MSG_rrMlpPm-HRVir108", "MSG_h03-HRVir108"    , "MSG_CRPh-HRVir108"],\
+                          ["MSG_rrMlp-HRVir108","MSG_RATE-HRVir108","MSG_h03-HRVir108"],\
+                          "rrOdyMlpPm-HRVir108"]
 
     # please download the shape file 
     in_msg.mapDir='/opt/users/common/shapes/'
@@ -145,14 +145,14 @@ def input(in_msg):
     in_msg.postprocessing_composite={}
     # possible backgrounds: IR-108 (not yet implemented: HRV, VIS006ir108, HRVir108)
     in_msg.postprocessing_composite['ccs4']       = ["rrMlp-HRVir108","rrMlpPm-HRVir108"]
-    in_msg.postprocessing_composite['odysseyS25'] = ["rrMlp-VIS006ir108"]
-    in_msg.postprocessing_composite['euroHDready'] = ["rrOdyMlpPm-VIS006ir108"]
+    in_msg.postprocessing_composite['odysseyS25'] = ["rrMlp-HRVir108"]
+    in_msg.postprocessing_composite['euroHDready'] = ["rrOdyMlpPm-HRVir108"]
     
     in_msg.postprocessing_montage={}
     #in_msg.postprocessing_montage['ccs4']       = [["MSG_radar-HRVir108","MSG_rrMlp-HRVir108", "MSG_CRR-HRVir108", "MSG_CRPh-HRVir108"]]
     in_msg.postprocessing_montage['ccs4']      = [["MSG_rrMlp-HRVir108",   "MSG_radar-HRVir108", "MSG_CRR-HRVir108", \
-                                                   "MSG_rrMlpPm-HRVir108", "MSG_h03-HRV"    , "MSG_CRPh-HRVir108"]]
-    in_msg.postprocessing_montage['odysseyS25'] = [["MSG_rrMlp-VIS006ir108","MSG_RATE-VIS006ir108","MSG_h03-VIS006ir108"]]
+                                                   "MSG_rrMlpPm-HRVir108", "MSG_h03-HRVir108"    , "MSG_CRPh-HRVir108"]]
+    in_msg.postprocessing_montage['odysseyS25'] = [["MSG_rrMlp-HRVir108","MSG_RATE-HRVir108","MSG_h03-HRVir108"]]
     
     #in_msg.resize_composite = 100
     in_msg.resize_montage = 70
