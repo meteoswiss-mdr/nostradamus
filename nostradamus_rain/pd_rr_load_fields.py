@@ -120,7 +120,7 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     pge_cth = get_NWC_pge_name(prop_cth) # separate so can correct all others before also correcting it
 
     # hsaf
-    prop_hsaf = 'h03' # <- what is this?! apparently estimated rain rate in mm/h
+    prop_hsaf = 'h03b' # estimated rain rate in mm/h see http://hsaf.meteoam.it/precipitation.php?tab=5
 
 
     print('=========================')
@@ -136,6 +136,7 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     try:
         global_sat = GeostationaryFactory.create_scene("meteosat", sat_nr, "seviri", time_slot)
         global_sat.load(channel_sat)
+        #global_sat.load(channel_sat, reader_level="seviri-level2")
         print(global_sat)
         print('=========================')
     except AttributeError:
@@ -148,7 +149,7 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
         print('read HSAF data')
         try:
             global_hsaf = GeostationaryFactory.create_scene("meteosat", sat_nr, "seviri", time_slot)
-            global_hsaf.load([prop_hsaf], reader_level='seviri-level7')
+            global_hsaf.load([prop_hsaf], reader_level='seviri-level10')
             print('=========================')
         except ValueError:
             date_missed = time_slot
@@ -160,7 +161,7 @@ def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
     
     print('read Nowcasting SAF data')
     global_nwc = GeostationaryFactory.create_scene("meteosat", sat_nr, "seviri", time_slot)
-    nwcsaf_calibrate=True   # converts data into physical units
+    nwcsaf_calibrate = True   # converts data into physical units
     global_nwc.load(pge_nwc, calibrate=nwcsaf_calibrate, reader_level="seviri-level3")  
     print("=========================")
 

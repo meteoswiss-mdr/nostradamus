@@ -142,6 +142,7 @@ def nostradamus_rain(in_msg):
             print('=================================')
             print('*** load the time slot specific fields with in_msg.parallax_gapfilling:', in_msg.parallax_gapfilling)
             global_radar, global_sat, global_nwc, global_cth, global_hsaf = load_input(sat_nr, time_slot, in_msg.parallax_gapfilling, read_HSAF=in_msg.read_HSAF)
+            #                                                               def load_input(sat_nr, time_slot, par_fill, read_HSAF=True):
         else:
             print('read Odyssey radar composite')
             from mpop.satellites import GeostationaryFactory
@@ -563,7 +564,7 @@ def nostradamus_rain(in_msg):
                         # add title to image
                         dc = DecoratorAGG(PIL_image)
                         if in_msg.add_title:
-                            add_title(PIL_image, in_msg.title, rgb, 'MSG', sat_nr, in_msg.datetime, area, dc, True,
+                            add_title(PIL_image, in_msg.title, rgb, 'MSG', sat_nr, in_msg.datetime, area, dc, in_msg.font_file, True,
                                       title_color=in_msg.title_color, title_y_line_nr=in_msg.title_y_line_nr ) # !!! needs change
                             
                         # save image as file
