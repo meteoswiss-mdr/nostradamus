@@ -6,7 +6,7 @@
 #export python=/usr/bin/python
 #export python=/opt/users/common/packages/anaconda3/envs/PyTroll_$LOGNAME/bin/python
 
-cd $PYTROLLHOME/packages/nostradamus
+cd $PYTROLLHOME/packages/nostradamus/nostradamus_rain/
 
 echo "*** Start to make seviri pictures (loop until all data is there)"
 echo 
